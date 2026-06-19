@@ -46,11 +46,40 @@ setup() {
   [[ "$output" == *"синхронен"* ]] || [[ "$output" == *"sync"* ]]
 }
 
-@test "new and pipe are deferred (exit 2) — pack 1/2 boundary" {
+@test "new is deferred (exit 2) — pack 2a/2b boundary" {
   run bash "$SCRIPT" new
   [ "$status" -eq 2 ]
-  run bash "$SCRIPT" pipe
-  [ "$status" -eq 2 ]
+}
+
+@test "pipe echoes stdin to stdout" {
+  run bash -c "printf 'secret-seed-123' | bash '$SCRIPT' pipe"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"secret-seed-123"* ]]
+}
+
+@test "pipe preserves multi-line input" {
+  run bash -c "printf 'line1\nline2\nline3' | bash '$SCRIPT' pipe"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"line1"* ]]
+  [[ "$output" == *"line2"* ]]
+  [[ "$output" == *"line3"* ]]
+}
+
+@test "pipe handles empty stdin (status 0, no crash)" {
+  run bash -c "printf '' | bash '$SCRIPT' pipe"
+  [ "$status" -eq 0 ]
+}
+
+@test "pipe writes nothing to disk" {
+  work="$(mktemp -d)"
+  before="$(find "$work" -type f | wc -l)"
+  ( cd "$work" && printf 'top-secret' | bash "$SCRIPT" pipe >/dev/null )
+  after="$(find "$work" -type f | wc -l)"
+  [ "$before" -eq "$after" ]
+  # содержимое не утекло во временные файлы рабочей папки
+  run bash -c "grep -rl 'top-secret' '$work' 2>/dev/null"
+  [ -z "$output" ]
+  rm -rf "$work"
 }
 
 @test "vendor --check detects drift in the vendored block" {

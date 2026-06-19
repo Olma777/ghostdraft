@@ -160,6 +160,8 @@ EOF
       ;;
     en:unknown_cmd) printf 'Unknown command: %s' "$1" ;;
     ru:unknown_cmd) printf 'Unknown command: %s' "$1" ;;
+    en:pipe_scrollback) printf 'Shown above. Nothing written to disk — but terminal scrollback still holds it; clear it (Cmd-K) when done.' ;;
+    ru:pipe_scrollback) printf 'Показано выше. На диск ничего не записано — но в scrollback терминала текст остаётся; очисти его (Cmd-K), когда закончишь.' ;;
     *) echo "$key" ;;
   esac
 }
@@ -168,6 +170,15 @@ usage() { t usage; }
 
 cmd_version() { echo "ghostdraft $VERSION"; }
 
+# pipe — прочитать stdin, напечатать в терминал, на диск НЕ писать ничего.
+# Самый безопасный режим: cat не создаёт временных файлов. Честно предупреждаем,
+# что scrollback терминала всё равно держит текст в памяти (это не «ноль следов»).
+cmd_pipe() {
+  cat
+  [[ -t 2 ]] && warn "$(t pipe_scrollback)"
+  return 0
+}
+
 main() {
   local cmd="${1:-}"
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
@@ -175,8 +186,9 @@ main() {
   case "$cmd" in
     version)        cmd_version "$@" ;;
     help|--help|-h) usage ;;
-    # new/pipe — ядро, реализуется в следующем паке (pack 2).
-    new|pipe)       err "ghostdraft: '$cmd' пока не реализован (pack 2)"; exit 2 ;;
+    pipe)           cmd_pipe "$@" ;;
+    # new — ядро (RAM-диск/vault + shred + чистка editor-истории), pack 2b.
+    new)            err "ghostdraft: 'new' пока не реализован (pack 2b)"; exit 2 ;;
     *) t unknown_cmd "$cmd" >&2; echo >&2; usage >&2; exit 1 ;;
   esac
 }
