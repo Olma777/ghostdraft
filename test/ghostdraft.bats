@@ -1,6 +1,10 @@
 # Тесты ghostdraft (pack 1: scaffold — вендоринг + skeleton + dispatcher).
 setup() {
   SCRIPT="${BATS_TEST_DIRNAME}/../ghostdraft"
+  # uname-стаб (-> Darwin) выводит на PATH: cmd_new зовёт require_macos, иначе
+  # тесты падали бы на Linux-CI. macOS-примитивы (hdiutil/diskutil) тесты не трогают.
+  STUBS="${BATS_TEST_DIRNAME}/stubs"
+  export PATH="$STUBS:$PATH"
 }
 
 @test "version prints semver" {
@@ -54,7 +58,8 @@ _fake_editor() {
 #!/usr/bin/env bash
 printf 'DRAFT-CONTENT' > "$1"
 printf '%s\n' "$1" > "${GD_EDITED_PATH:?}"
-stat -f '%Lp' "$1" > "${GD_EDITED_MODE:?}"
+# права: BSD (macOS) stat -f, иначе GNU (Linux-CI) stat -c
+{ stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; } > "${GD_EDITED_MODE:?}"
 SH
   chmod +x "$ed"
 }
@@ -101,7 +106,7 @@ printf 'swap' > "$d/.$b.swp"
 printf 'undo' > "$d/.$b.un~"
 printf 'backup' > "$d/$b~"
 printf '%s\n' "$1" > "${GD_EDITED_PATH:?}"
-stat -f '%Lp' "$1" > "${GD_EDITED_MODE:?}"
+{ stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; } > "${GD_EDITED_MODE:?}"
 SH
   chmod +x "$work/ed"
   export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
