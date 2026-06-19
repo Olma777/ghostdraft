@@ -58,8 +58,9 @@ _fake_editor() {
 #!/usr/bin/env bash
 printf 'DRAFT-CONTENT' > "$1"
 printf '%s\n' "$1" > "${GD_EDITED_PATH:?}"
-# права: BSD (macOS) stat -f, иначе GNU (Linux-CI) stat -c
-{ stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; } > "${GD_EDITED_MODE:?}"
+# права: GNU (Linux-CI) stat -c сначала; BSD (macOS) -c падает -> fallback -f.
+  # Обратный порядок ломался: GNU `stat -f` НЕ падает (--file-system), даёт мусор.
+{ stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; } > "${GD_EDITED_MODE:?}"
 SH
   chmod +x "$ed"
 }
@@ -106,7 +107,7 @@ printf 'swap' > "$d/.$b.swp"
 printf 'undo' > "$d/.$b.un~"
 printf 'backup' > "$d/$b~"
 printf '%s\n' "$1" > "${GD_EDITED_PATH:?}"
-{ stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; } > "${GD_EDITED_MODE:?}"
+{ stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; } > "${GD_EDITED_MODE:?}"
 SH
   chmod +x "$work/ed"
   export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
