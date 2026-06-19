@@ -172,8 +172,16 @@ EOF
     ru:new_no_loc) printf 'Нет безопасного места: vault не открыт, RAM-диск создать не удалось. Отказываюсь писать в /tmp на диске (APFS). Открой vault: securetrash vault open.' ;;
     en:new_residue) printf 'Draft shredded and editor backups cleaned. CANNOT scrub: terminal scrollback, OS swap, and ~/.viminfo (registers/last yank) — handle those yourself.' ;;
     ru:new_residue) printf 'Черновик удалён, editor-бэкапы вычищены. НЕ могу вычистить: scrollback терминала, swap ОС и ~/.viminfo (регистры/последний yank) — это на тебе.' ;;
-    en:clip_deferred) printf '--clipboard is not implemented yet (pack 2c) — ignored. (It is dangerous: clipboard managers + iCloud Universal Clipboard.)' ;;
-    ru:clip_deferred) printf '--clipboard пока не реализован (pack 2c) — игнорирую. (Он опасен: clipboard-менеджеры + iCloud Universal Clipboard.)' ;;
+    en:clip_danger) printf 'DANGER: --clipboard copies the secret to the system clipboard. Clipboard managers may keep a copy, and iCloud Universal Clipboard syncs it to your other devices. Auto-clear cannot undo a copy already taken.' ;;
+    ru:clip_danger) printf 'ОПАСНО: --clipboard кладёт секрет в системный буфер. Clipboard-менеджеры могут сохранить копию, а iCloud Universal Clipboard синкает его на твои другие устройства. Авто-очистка НЕ отменяет уже снятую копию.' ;;
+    en:clip_confirm) printf 'Copy to clipboard anyway?' ;;
+    ru:clip_confirm) printf 'Всё равно скопировать в буфер?' ;;
+    en:clip_set) printf 'Copied to clipboard; will auto-clear in %ss if still unchanged.' "$1" ;;
+    ru:clip_set) printf 'Скопировано в буфер; авто-очистка через %sс, если буфер не сменится.' "$1" ;;
+    en:clip_cancelled) printf 'Clipboard skipped.' ;;
+    ru:clip_cancelled) printf 'Буфер пропущен.' ;;
+    en:clip_no_pbcopy) printf 'pbcopy not found — cannot use the clipboard.' ;;
+    ru:clip_no_pbcopy) printf 'pbcopy не найден — буфер недоступен.' ;;
     *) echo "$key" ;;
   esac
 }
@@ -275,6 +283,34 @@ _clean_editor_residue() {
         "$dir/$base~" 2>/dev/null || true
 }
 
+# Очистить буфер, ТОЛЬКО если он всё ещё держит наш секрет (не затираем то, что
+# пользователь скопировал позже). Сравниваем pbpaste с известным содержимым.
+_clip_clear_if_match() {
+  local want="$1"
+  command -v pbpaste >/dev/null 2>&1 || return 0
+  [[ "$(pbpaste 2>/dev/null)" == "$want" ]] && printf '' | pbcopy 2>/dev/null
+  return 0
+}
+
+# Положить черновик в системный буфер с явным подтверждением (опасно: clipboard-
+# менеджеры + iCloud Universal Clipboard). Авто-очистка через N сек в фоне, но только
+# если буфер не сменился. Код!=0 — буфер не тронут (вызывающий продолжает shred).
+_clip_put() {
+  local f="$1" secs content
+  command -v pbcopy >/dev/null 2>&1 || { warn "$(t clip_no_pbcopy)"; return 1; }
+  warn "$(t clip_danger)"
+  if ! confirm "$(t clip_confirm)"; then warn "$(t clip_cancelled)"; return 1; fi
+  pbcopy < "$f"
+  secs="${GHOSTDRAFT_CLIP_SECS:-20}"
+  content="$(cat "$f")"
+  info "$(t clip_set "$secs")"
+  # Фон: подождать и очистить, если буфер всё ещё наш. stdout/stderr закрываем,
+  # чтобы не держать пайп вызывающего; функции наследуются в субшелл ( ).
+  ( sleep "$secs"; _clip_clear_if_match "$content" ) >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+  return 0
+}
+
 # Трап: shred файла → чистка editor-следов → detach RAM-диска (если наш).
 _gd_cleanup() {
   _shred_file "$_GD_DRAFT_FILE"
@@ -315,7 +351,7 @@ cmd_new() {
 
   "${EDITOR:-nano}" "$f"
 
-  [[ $use_clip == 1 ]] && warn "$(t clip_deferred)"   # действие буфера — pack 2c
+  [[ $use_clip == 1 ]] && { _clip_put "$f" || true; }   # буфер не должен ломать shred
 
   warn "$(t new_residue)"
   # cleanup сработает по trap EXIT (shred + чистка следов + detach RAM).

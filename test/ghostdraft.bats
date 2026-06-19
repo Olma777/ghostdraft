@@ -124,6 +124,54 @@ SH
   rm -rf "$work"
 }
 
+@test "new --clipboard copies the draft to the clipboard after confirm" {
+  work="$(mktemp -d)"; bin="$work/bin"; mkdir -p "$bin"
+  printf '#!/usr/bin/env bash\ncat >> "$CLIP_LOG"\n' > "$bin/pbcopy"
+  printf '#!/usr/bin/env bash\ncat "$CLIP_STATE" 2>/dev/null || true\n' > "$bin/pbpaste"
+  chmod +x "$bin/pbcopy" "$bin/pbpaste"
+  ed="$work/ed"; _fake_editor "$ed"
+  export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
+  export CLIP_LOG="$work/clip.log" CLIP_STATE="$work/clip.state"; : > "$CLIP_LOG"
+  # CLIP_SECS=1: авто-очистка лишь дописывает пустоту в append-log — assertion ниже
+  # (grep DRAFT-CONTENT) race-safe; держим коротко, чтобы не плодить фоновые sleep.
+  run env PATH="$bin:$PATH" GHOSTDRAFT_DIR="$work/d" GHOSTDRAFT_CLIP_SECS=1 \
+    ST_ASSUME_YES=1 EDITOR="$ed" bash "$SCRIPT" new --clipboard
+  [ "$status" -eq 0 ]
+  grep -q 'DRAFT-CONTENT' "$CLIP_LOG"
+  rm -rf "$work"
+}
+
+@test "new --clipboard does NOT copy when confirm is declined" {
+  work="$(mktemp -d)"; bin="$work/bin"; mkdir -p "$bin"
+  printf '#!/usr/bin/env bash\ncat >> "$CLIP_LOG"\n' > "$bin/pbcopy"
+  printf '#!/usr/bin/env bash\ntrue\n' > "$bin/pbpaste"
+  chmod +x "$bin/pbcopy" "$bin/pbpaste"
+  ed="$work/ed"; _fake_editor "$ed"
+  export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
+  export CLIP_LOG="$work/clip.log"; : > "$CLIP_LOG"
+  run env PATH="$bin:$PATH" GHOSTDRAFT_DIR="$work/d" EDITOR="$ed" \
+    bash "$SCRIPT" new --clipboard <<< "no"
+  [ "$status" -eq 0 ]
+  run grep -q 'DRAFT-CONTENT' "$CLIP_LOG"
+  [ "$status" -ne 0 ]
+  rm -rf "$work"
+}
+
+@test "_clip_clear_if_match clears only when clipboard still holds our content" {
+  work="$(mktemp -d)"; bin="$work/bin"; mkdir -p "$bin"
+  printf '#!/usr/bin/env bash\ncat > "$CLIP_STATE"\n' > "$bin/pbcopy"
+  printf '#!/usr/bin/env bash\ncat "$CLIP_STATE" 2>/dev/null || true\n' > "$bin/pbpaste"
+  chmod +x "$bin/pbcopy" "$bin/pbpaste"
+  export CLIP_STATE="$work/state"
+  printf 'OUR-SECRET' > "$CLIP_STATE"
+  PATH="$bin:$PATH" bash -c "source '$SCRIPT'; _clip_clear_if_match 'OUR-SECRET'"
+  [ -z "$(cat "$CLIP_STATE")" ]
+  printf 'USER-LATER-COPY' > "$CLIP_STATE"
+  PATH="$bin:$PATH" bash -c "source '$SCRIPT'; _clip_clear_if_match 'OUR-SECRET'"
+  [ "$(cat "$CLIP_STATE")" = "USER-LATER-COPY" ]
+  rm -rf "$work"
+}
+
 @test "new refuses honestly when no safe location is available" {
   work="$(mktemp -d)"
   run env -u GHOSTDRAFT_DIR ST_VAULT_VOLUME="$work/nonexistent" \
