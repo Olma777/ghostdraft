@@ -162,6 +162,18 @@ EOF
     ru:unknown_cmd) printf 'Unknown command: %s' "$1" ;;
     en:pipe_scrollback) printf 'Shown above. Nothing written to disk — but terminal scrollback still holds it; clear it (Cmd-K) when done.' ;;
     ru:pipe_scrollback) printf 'Показано выше. На диск ничего не записано — но в scrollback терминала текст остаётся; очисти его (Cmd-K), когда закончишь.' ;;
+    en:new_loc_vault) printf 'Draft inside the open securetrash vault (%s) — encrypted; closing the vault crypto-shreds it.' "$1" ;;
+    ru:new_loc_vault) printf 'Черновик внутри открытого vault securetrash (%s) — зашифрован; закрытие vault даёт crypto-shred.' "$1" ;;
+    en:new_loc_ram) printf 'Draft on a RAM disk (%s) — lives in RAM, gone on detach. Not synced, not on the SSD.' "$1" ;;
+    ru:new_loc_ram) printf 'Черновик на RAM-диске (%s) — живёт в RAM, исчезает при detach. Не синкается, не на SSD.' "$1" ;;
+    en:new_loc_override) printf 'Draft in GHOSTDRAFT_DIR (%s) — you chose this path; its on-disk safety is on you.' "$1" ;;
+    ru:new_loc_override) printf 'Черновик в GHOSTDRAFT_DIR (%s) — путь выбран тобой; безопасность на диске на твоей совести.' "$1" ;;
+    en:new_no_loc) printf 'No safe location: no open vault and a RAM disk could not be created. Refusing to write to the on-disk /tmp (APFS). Open a vault: securetrash vault open.' ;;
+    ru:new_no_loc) printf 'Нет безопасного места: vault не открыт, RAM-диск создать не удалось. Отказываюсь писать в /tmp на диске (APFS). Открой vault: securetrash vault open.' ;;
+    en:new_residue) printf 'Draft shredded and editor backups cleaned. CANNOT scrub: terminal scrollback, OS swap, and ~/.viminfo (registers/last yank) — handle those yourself.' ;;
+    ru:new_residue) printf 'Черновик удалён, editor-бэкапы вычищены. НЕ могу вычистить: scrollback терминала, swap ОС и ~/.viminfo (регистры/последний yank) — это на тебе.' ;;
+    en:clip_deferred) printf '--clipboard is not implemented yet (pack 2c) — ignored. (It is dangerous: clipboard managers + iCloud Universal Clipboard.)' ;;
+    ru:clip_deferred) printf '--clipboard пока не реализован (pack 2c) — игнорирую. (Он опасен: clipboard-менеджеры + iCloud Universal Clipboard.)' ;;
     *) echo "$key" ;;
   esac
 }
@@ -179,6 +191,136 @@ cmd_pipe() {
   return 0
 }
 
+# --- new: эфемерный черновик (vault / RAM-диск) + shred + чистка editor-следов ---
+
+# Состояние для cleanup-трапа (заполняется по ходу cmd_new).
+_GD_DRAFT_FILE=""   # путь к файлу черновика
+_GD_RAM_DEV=""      # dev-node RAM-диска, если создали мы (для detach)
+
+# Том примонтирован и доступен на запись? (директория + writable + есть в `mount`).
+# Грубо, но честно: не пишем в путь, который лишь выглядит как vault.
+_is_mounted_writable() {
+  local vol="$1"
+  [[ -n "$vol" && -d "$vol" && -w "$vol" ]] || return 1
+  mount | grep -q " on ${vol} " || mount | grep -q " on ${vol}("
+}
+
+# Создать RAM-диск (HFS+). Печатает "<mnt>\t<dev>"; код!=0 — не удалось.
+# ВАЖНО: dev-node возвращается через stdout, НЕ через глобал — функция вызывается
+# в command-substitution ($(...)), где присваивание глобалу потерялось бы в subshell
+# (из-за этого RAM-диск раньше утекал без detach). GHOSTDRAFT_DISABLE_RAM=1 отключает
+# (тесты не должны создавать реальные RAM-диски).
+_ram_make() {
+  [[ "${GHOSTDRAFT_DISABLE_RAM:-0}" == "1" ]] && return 1
+  command -v hdiutil >/dev/null 2>&1 || return 1
+  local sectors dev mnt
+  sectors=$(( 64 * 1024 * 1024 / 512 ))   # 64 MiB; сектор 512 B
+  dev="$(hdiutil attach -nomount "ram://${sectors}" 2>/dev/null)" || return 1
+  dev="$(printf '%s' "$dev" | tr -d '[:space:]')"
+  [[ -n "$dev" ]] || return 1
+  if ! diskutil erasevolume HFS+ ghostdraft-ram "$dev" >/dev/null 2>&1; then
+    hdiutil detach "$dev" >/dev/null 2>&1 || true
+    return 1
+  fi
+  mnt="/Volumes/ghostdraft-ram"
+  if [[ ! -d "$mnt" || ! -w "$mnt" ]]; then
+    hdiutil detach "$dev" >/dev/null 2>&1 || true
+    return 1
+  fi
+  printf '%s\t%s' "$mnt" "$dev"
+}
+
+# Выбрать каталог для черновика. Печатает "<dir>\t<kind>\t<ram_dev>" (ram_dev пуст,
+# если это не RAM-диск); код!=0 — безопасного места нет. Приоритет: GHOSTDRAFT_DIR
+# (override) → открытый vault → RAM-диск. ram_dev несём через stdout, чтобы родитель
+# мог сделать detach (см. _ram_make — глобал в $(...) не пережил бы subshell).
+_pick_draft_dir() {
+  local ov="${GHOSTDRAFT_DIR:-}"
+  if [[ -n "$ov" ]]; then
+    mkdir -p "$ov" 2>/dev/null || true
+    if [[ -d "$ov" && -w "$ov" ]]; then printf '%s\toverride\t' "$ov"; return 0; fi
+  fi
+  local vol="${ST_VAULT_VOLUME:-/Volumes/SecretVault}"
+  if _is_mounted_writable "$vol"; then printf '%s\tvault\t' "$vol"; return 0; fi
+  local rdpair rmnt rdev
+  if rdpair="$(_ram_make)"; then
+    IFS=$'\t' read -r rmnt rdev <<<"$rdpair"
+    printf '%s\tram\t%s' "$rmnt" "$rdev"; return 0
+  fi
+  return 1
+}
+
+# Затереть и удалить файл. Предпочитаем securetrash shred (его честная логика);
+# иначе fallback: overwrite случайными байтами + rm. На RAM-диске реальное стирание —
+# detach (байты в RAM), на vault — закрытие контейнера (crypto-shred); fallback — на SSD
+# best-effort и не гарантия (ровно об этом securetrash и предупреждает).
+_shred_file() {
+  local f="$1"
+  [[ -n "$f" && -e "$f" ]] || return 0
+  if command -v securetrash >/dev/null 2>&1; then
+    ST_ASSUME_YES=1 securetrash shred "$f" >/dev/null 2>&1 && return 0
+  fi
+  local n; n="$(wc -c <"$f" 2>/dev/null || echo 0)"
+  [[ "$n" -gt 0 ]] && dd if=/dev/urandom of="$f" bs="$n" count=1 conv=notrunc 2>/dev/null || true
+  rm -f "$f" 2>/dev/null || true
+}
+
+# Удалить editor-следы рядом с черновиком: vim swap/undo, nano backup.
+# Честно: ~/.viminfo, swap ОС и scrollback мы выборочно вычистить НЕ можем (см. new_residue).
+_clean_editor_residue() {
+  local f="$1" dir base
+  [[ -n "$f" ]] || return 0
+  dir="$(dirname "$f")"; base="$(basename "$f")"
+  rm -f "$dir/.$base.swp" "$dir/.$base.swo" "$dir/.$base.swn" "$dir/.$base.un~" \
+        "$dir/$base~" 2>/dev/null || true
+}
+
+# Трап: shred файла → чистка editor-следов → detach RAM-диска (если наш).
+_gd_cleanup() {
+  _shred_file "$_GD_DRAFT_FILE"
+  _clean_editor_residue "$_GD_DRAFT_FILE"
+  if [[ -n "$_GD_RAM_DEV" ]]; then
+    hdiutil detach "$_GD_RAM_DEV" >/dev/null 2>&1 || true
+    _GD_RAM_DEV=""
+  fi
+}
+
+cmd_new() {
+  require_macos
+  local use_clip=0 a
+  for a in "$@"; do
+    case "$a" in
+      --clipboard) use_clip=1 ;;
+      *) t unknown_cmd "$a" >&2; echo >&2; exit 1 ;;
+    esac
+  done
+
+  local pick dir kind ram_dev
+  if ! pick="$(_pick_draft_dir)"; then err "$(t new_no_loc)"; exit 3; fi
+  IFS=$'\t' read -r dir kind ram_dev <<<"$pick"
+  _GD_RAM_DEV="$ram_dev"   # в родителе — чтобы trap сделал detach
+
+  # Файл черновика: mktemp в выбранном каталоге, права 600.
+  local f
+  f="$(mktemp "${dir%/}/.ghostdraft.XXXXXX")" || { err "$(t new_no_loc)"; _gd_cleanup; exit 3; }
+  chmod 600 "$f"
+  _GD_DRAFT_FILE="$f"
+  trap _gd_cleanup EXIT INT TERM
+
+  case "$kind" in
+    vault)    info "$(t new_loc_vault "$dir")" ;;
+    ram)      info "$(t new_loc_ram "$dir")" ;;
+    override) warn "$(t new_loc_override "$dir")" ;;
+  esac
+
+  "${EDITOR:-nano}" "$f"
+
+  [[ $use_clip == 1 ]] && warn "$(t clip_deferred)"   # действие буфера — pack 2c
+
+  warn "$(t new_residue)"
+  # cleanup сработает по trap EXIT (shred + чистка следов + detach RAM).
+}
+
 main() {
   local cmd="${1:-}"
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
@@ -187,8 +329,7 @@ main() {
     version)        cmd_version "$@" ;;
     help|--help|-h) usage ;;
     pipe)           cmd_pipe "$@" ;;
-    # new — ядро (RAM-диск/vault + shred + чистка editor-истории), pack 2b.
-    new)            err "ghostdraft: 'new' пока не реализован (pack 2b)"; exit 2 ;;
+    new)            cmd_new "$@" ;;
     *) t unknown_cmd "$cmd" >&2; echo >&2; usage >&2; exit 1 ;;
   esac
 }

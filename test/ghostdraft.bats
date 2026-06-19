@@ -46,9 +46,90 @@ setup() {
   [[ "$output" == *"синхронен"* ]] || [[ "$output" == *"sync"* ]]
 }
 
-@test "new is deferred (exit 2) — pack 2a/2b boundary" {
-  run bash "$SCRIPT" new
-  [ "$status" -eq 2 ]
+# Фейковый редактор: пишет известный маркер в переданный файл и запоминает путь.
+# Через него тестируем жизненный цикл `new` headless (без TTY, без реального RAM-диска).
+_fake_editor() {
+  local ed="$1"
+  cat > "$ed" <<'SH'
+#!/usr/bin/env bash
+printf 'DRAFT-CONTENT' > "$1"
+printf '%s\n' "$1" > "${GD_EDITED_PATH:?}"
+stat -f '%Lp' "$1" > "${GD_EDITED_MODE:?}"
+SH
+  chmod +x "$ed"
+}
+
+@test "new opens editor on a draft inside GHOSTDRAFT_DIR" {
+  work="$(mktemp -d)"; ed="$work/ed"; _fake_editor "$ed"
+  export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
+  run env GHOSTDRAFT_DIR="$work/draftdir" EDITOR="$ed" bash "$SCRIPT" new
+  [ "$status" -eq 0 ]
+  edited="$(cat "$work/edited")"
+  [[ "$edited" == "$work/draftdir/"* ]]
+  rm -rf "$work"
+}
+
+@test "new shreds the draft file on exit (nothing left)" {
+  work="$(mktemp -d)"; ed="$work/ed"; _fake_editor "$ed"
+  export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
+  run env GHOSTDRAFT_DIR="$work/draftdir" EDITOR="$ed" bash "$SCRIPT" new
+  [ "$status" -eq 0 ]
+  edited="$(cat "$work/edited")"
+  [ ! -e "$edited" ]
+  run bash -c "grep -rl 'DRAFT-CONTENT' '$work/draftdir' 2>/dev/null"
+  [ -z "$output" ]
+  rm -rf "$work"
+}
+
+@test "new creates the draft with 600 perms" {
+  work="$(mktemp -d)"; ed="$work/ed"; _fake_editor "$ed"
+  export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
+  run env GHOSTDRAFT_DIR="$work/draftdir" EDITOR="$ed" bash "$SCRIPT" new
+  [ "$status" -eq 0 ]
+  [ "$(cat "$work/mode")" = "600" ]
+  rm -rf "$work"
+}
+
+@test "new cleans vim swap/undo and nano backup of the draft" {
+  work="$(mktemp -d)"; dir="$work/draftdir"
+  # редактор создаёт побочные editor-следы рядом с черновиком
+  cat > "$work/ed" <<'SH'
+#!/usr/bin/env bash
+printf 'DRAFT-CONTENT' > "$1"
+d="$(dirname "$1")"; b="$(basename "$1")"
+printf 'swap' > "$d/.$b.swp"
+printf 'undo' > "$d/.$b.un~"
+printf 'backup' > "$d/$b~"
+printf '%s\n' "$1" > "${GD_EDITED_PATH:?}"
+stat -f '%Lp' "$1" > "${GD_EDITED_MODE:?}"
+SH
+  chmod +x "$work/ed"
+  export GD_EDITED_PATH="$work/edited" GD_EDITED_MODE="$work/mode"
+  run env GHOSTDRAFT_DIR="$dir" EDITOR="$work/ed" bash "$SCRIPT" new
+  [ "$status" -eq 0 ]
+  run bash -c "ls -A '$dir' 2>/dev/null"
+  [ -z "$output" ]
+  rm -rf "$work"
+}
+
+# Регрессия: _pick_draft_dir несёт ram-dev третьим полем через stdout (не через
+# глобал в $(...)). Раньше RAM-диск утекал без detach из-за subshell. Контракт:
+# вывод = "<dir>\t<kind>\t<ram_dev>" (ram_dev пуст для override/vault).
+@test "_pick_draft_dir emits the ram-dev field (no-subshell-leak contract)" {
+  work="$(mktemp -d)"
+  out="$(source "$SCRIPT"; GHOSTDRAFT_DIR="$work" _pick_draft_dir)"
+  fields="$(awk -F'\t' '{print NF}' <<<"$out")"
+  [ "$fields" -eq 3 ]
+  [[ "$out" == "$work"$'\t'override$'\t'* ]]
+  rm -rf "$work"
+}
+
+@test "new refuses honestly when no safe location is available" {
+  work="$(mktemp -d)"
+  run env -u GHOSTDRAFT_DIR ST_VAULT_VOLUME="$work/nonexistent" \
+    GHOSTDRAFT_DISABLE_RAM=1 EDITOR=true bash "$SCRIPT" new
+  [ "$status" -eq 3 ]
+  rm -rf "$work"
 }
 
 @test "pipe echoes stdin to stdout" {
