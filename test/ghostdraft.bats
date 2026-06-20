@@ -14,6 +14,30 @@ setup() {
   [[ "$output" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
 }
 
+@test "--version flag prints version" {
+  run bash "$SCRIPT" --version
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ghostdraft"* ]]
+}
+
+@test "-v flag prints version" {
+  run bash "$SCRIPT" -v
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ghostdraft"* ]]
+}
+
+@test "--help flag prints usage" {
+  run bash "$SCRIPT" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Usage:"* ]]
+}
+
+@test "-h flag prints usage" {
+  run bash "$SCRIPT" -h
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Usage:"* ]]
+}
+
 @test "no args prints usage and exits non-zero" {
   run bash "$SCRIPT"
   [ "$status" -ne 0 ]

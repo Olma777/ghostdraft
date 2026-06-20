@@ -364,7 +364,7 @@ main() {
   if [[ -z "$cmd" ]]; then usage; exit 1; fi
   shift || true
   case "$cmd" in
-    version)        cmd_version "$@" ;;
+    version|-v|--version) cmd_version "$@" ;;
     help|--help|-h) usage ;;
     pipe)           cmd_pipe "$@" ;;
     new)            cmd_new "$@" ;;
