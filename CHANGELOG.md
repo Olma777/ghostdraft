@@ -5,6 +5,22 @@
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-06-22
+
+### Added
+- **Подпись релизов (Ed25519, опциональная):** CI подписывает `SHA256SUMS`, `install.sh`
+  авто-проверяет подпись поверх контрольной суммы (мягкая деградация). Pubkey в `SECURITY.md`.
+- Homebrew `Formula/ghostdraft.rb`, `LICENSE`/`SECURITY.md`/`CONTRIBUTING.md`,
+  English-primary README + `README.ru.md`, флаги `-v`/`--version`, `-h`/`--help`.
+
+### Fixed
+- **Уникальное имя тома RAM-диска** (суффикс из urandom) + mountpoint из `diskutil`: фикс
+  коллизии параллельных инстансов и промаха detach по фиксированному имени.
+- **Офлайн `vendor --check`:** хеш вшитого common-блока против запиннутого SHA, без сети.
+
+### Changed
+- Честный `desc` в Homebrew-формуле — «RAM disk, not on-disk temp» вместо «leaves no disk trace».
+
 ## [0.1.0] — 2026-06-19
 
 Первый функциональный срез: эфемерный черновик для чувствительного текста на macOS.
