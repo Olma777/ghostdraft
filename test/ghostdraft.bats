@@ -154,6 +154,16 @@ SH
   rm -rf "$work"
 }
 
+# Регрессия: имя тома RAM-диска уникально (suffix из /dev/urandom). Раньше фикс.
+# /Volumes/ghostdraft-ram → коллизия двух инстансов и промах detach по имени.
+@test "_ram_volname is unique per call and carries the prefix" {
+  a="$(source "$SCRIPT"; _ram_volname)"
+  b="$(source "$SCRIPT"; _ram_volname)"
+  [[ "$a" =~ ^ghostdraft-ram-[0-9a-f]{8}$ ]]
+  [[ "$b" =~ ^ghostdraft-ram-[0-9a-f]{8}$ ]]
+  [ "$a" != "$b" ]
+}
+
 @test "new --clipboard copies the draft to the clipboard after confirm" {
   work="$(mktemp -d)"; bin="$work/bin"; mkdir -p "$bin"
   printf '#!/usr/bin/env bash\ncat >> "$CLIP_LOG"\n' > "$bin/pbcopy"

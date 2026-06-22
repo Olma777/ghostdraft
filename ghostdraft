@@ -213,6 +213,17 @@ _is_mounted_writable() {
   mount | grep -q " on ${vol} " || mount | grep -q " on ${vol}("
 }
 
+# Уникальное имя тома RAM-диска: ghostdraft-ram-<8 hex>. Уникальность нужна, чтобы
+# параллельные инстансы (или несдетаченный остаток) не делили один /Volumes/ghostdraft-ram
+# (тогда macOS примонтировал бы второй как "ghostdraft-ram 1" — наш detach по фиксированному
+# имени промахнулся бы). Энтропия — из /dev/urandom (как и в seedsplit), без зависимости от $RANDOM.
+_ram_volname() {
+  local suffix
+  suffix="$(head -c 4 /dev/urandom 2>/dev/null | od -An -v -tx1 | tr -d ' \n')"
+  [[ -n "$suffix" ]] || suffix="$$"   # деградация: PID, если urandom недоступен
+  printf 'ghostdraft-ram-%s' "$suffix"
+}
+
 # Создать RAM-диск (HFS+). Печатает "<mnt>\t<dev>"; код!=0 — не удалось.
 # ВАЖНО: dev-node возвращается через stdout, НЕ через глобал — функция вызывается
 # в command-substitution ($(...)), где присваивание глобалу потерялось бы в subshell
@@ -221,16 +232,20 @@ _is_mounted_writable() {
 _ram_make() {
   [[ "${GHOSTDRAFT_DISABLE_RAM:-0}" == "1" ]] && return 1
   command -v hdiutil >/dev/null 2>&1 || return 1
-  local sectors dev mnt
+  local sectors dev mnt volname
   sectors=$(( 64 * 1024 * 1024 / 512 ))   # 64 MiB; сектор 512 B
   dev="$(hdiutil attach -nomount "ram://${sectors}" 2>/dev/null)" || return 1
   dev="$(printf '%s' "$dev" | tr -d '[:space:]')"
   [[ -n "$dev" ]] || return 1
-  if ! diskutil erasevolume HFS+ ghostdraft-ram "$dev" >/dev/null 2>&1; then
+  volname="$(_ram_volname)"
+  if ! diskutil erasevolume HFS+ "$volname" "$dev" >/dev/null 2>&1; then
     hdiutil detach "$dev" >/dev/null 2>&1 || true
     return 1
   fi
-  mnt="/Volumes/ghostdraft-ram"
+  # Реальный mountpoint берём из diskutil (а не угадываем /Volumes/<volname>): macOS
+  # мог бы добавить суффикс при коллизии — детач у нас по dev-node, путь нужен точный.
+  mnt="$(diskutil info "$dev" 2>/dev/null | awk -F': +' '/Mount Point/{print $2; exit}')"
+  [[ -n "$mnt" ]] || mnt="/Volumes/${volname}"
   if [[ ! -d "$mnt" || ! -w "$mnt" ]]; then
     hdiutil detach "$dev" >/dev/null 2>&1 || true
     return 1
