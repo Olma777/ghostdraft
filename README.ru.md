@@ -13,7 +13,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-blue)
 ![shellcheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)
 
-> **Статус: ранний (v0.1.0).** Готовы `pipe` (просмотр без записи на диск) и `new`
+> **Статус: ранний (v0.1.1).** Готовы `pipe` (просмотр без записи на диск) и `new`
 > (черновик в открытом vault / на RAM-диске → `$EDITOR` → shred + чистка editor-следов
 > по выходу), включая опциональный `--clipboard` (опасно, с подтверждением + авто-очистка).
 

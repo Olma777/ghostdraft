@@ -13,7 +13,7 @@ left in the usual places (`~/.*_history`, tmp, recent docs, editor backups/vimin
 ![platform](https://img.shields.io/badge/platform-macOS-blue)
 ![shellcheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)
 
-> **Status: early (v0.1.0).** `pipe` (view without writing to disk) and `new` (a draft
+> **Status: early (v0.1.1).** `pipe` (view without writing to disk) and `new` (a draft
 > in an open vault / RAM disk → `$EDITOR` → shred + clean editor traces on exit) are
 > ready, including the optional `--clipboard` (dangerous, gated behind confirmation +
 > auto-clear).
