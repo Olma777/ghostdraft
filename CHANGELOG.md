@@ -5,6 +5,18 @@
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-06-24
+
+Релиз догоняет ассеты до исходников: hardening установщика и подписи, осевший
+в `main` после тега `v0.1.1`, теперь попадает в публичный релиз.
+
+### Security
+- **install.sh fail-closed:** отсутствие `SHA256SUMS.sig` на релизе теперь прерывает
+  установку (обход для старых релизов — `ALLOW_UNSIGNED_LEGACY=1`); отсутствие `ssh-keygen`
+  больше не молчит, а громко предупреждает, что подпись не проверена (только целостность).
+- **Подпись релиза fail-closed:** `release.yml` прерывает выпуск (`exit 1`), если
+  `RELEASE_SIGNING_KEY` не задан, — неподписанный релиз невозможен.
+
 ## [0.1.1] — 2026-06-22
 
 ### Added
@@ -63,5 +75,7 @@
 - Real-device smoke на macOS: `new` создал RAM-диск, открыл редактор, по выходу сделал
   shred и detach (регрессия subshell-leak покрыта).
 
-[Unreleased]: https://github.com/Di-kairos/ghostdraft/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Di-kairos/ghostdraft/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Di-kairos/ghostdraft/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/Di-kairos/ghostdraft/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Di-kairos/ghostdraft/releases/tag/v0.1.0
