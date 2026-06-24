@@ -13,7 +13,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS-blue)
 ![shellcheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)
 
-> **Статус: ранний (v0.1.1).** Готовы `pipe` (просмотр без записи на диск) и `new`
+> **Статус: ранний (v0.1.2).** Готовы `pipe` (просмотр без записи на диск) и `new`
 > (черновик в открытом vault / на RAM-диске → `$EDITOR` → shred + чистка editor-следов
 > по выходу), включая опциональный `--clipboard` (опасно, с подтверждением + авто-очистка).
 
@@ -46,8 +46,8 @@ curl -fsSL https://github.com/Di-kairos/ghostdraft/releases/latest/download/inst
 > `main`. Но и сумма, и бинарь приходят по одному каналу: от подмены *самого* релиза
 > (переписаны оба) это не защищает. Для подлинности нужна подпись / Homebrew.
 
-> Текущий публичный релиз — **v0.1.1** (подписан, с `install.sh` + `SHA256SUMS`).
-> Для воспроизводимости фиксируй его: `GHOSTDRAFT_VERSION=0.1.1` вместо `latest`.
+> Текущий публичный релиз — **v0.1.2** (подписан, с `install.sh` + `SHA256SUMS`).
+> Для воспроизводимости фиксируй его: `GHOSTDRAFT_VERSION=0.1.2` вместо `latest`.
 
 ## Использование
 
