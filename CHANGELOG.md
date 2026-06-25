@@ -5,6 +5,21 @@
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-06-25
+
+Первый выпуск с поддержкой Windows.
+
+### Added
+- **Windows PowerShell port (beta):** `windows/ghostdraft.ps1` + `windows/install.ps1`.
+  `pipe` читает stdin и печатает в терминал, ничего не пиша на диск. `new [--clipboard]`
+  редактирует эфемерный черновик и по выходу делает shred + чистку editor-следов.
+  ЧЕСТНО: на Windows нет встроенного RAM-диска, поэтому без открытого vault черновик
+  ложится во временный файл НА ДИСКЕ (ACL только для юзера) + best-effort overwrite-shred;
+  реальная эфемерность — только внутри открытого vault securetrash (BitLocker VHDX,
+  crypto-shred при закрытии). `--clipboard` опасен (история Win+V + Cloud Clipboard),
+  по умолчанию ВЫКЛ, фоновой авто-очистки на Windows нет. Pester покрывает оркестровку
+  с замоканными editor/shred/clipboard (windows-CI).
+
 ## [0.1.2] — 2026-06-24
 
 Релиз догоняет ассеты до исходников: hardening установщика и подписи, осевший
