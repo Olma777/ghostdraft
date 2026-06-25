@@ -11,9 +11,10 @@ left in the usual places (`~/.*_history`, tmp, recent docs, editor backups/vimin
 [![CI](https://github.com/Di-kairos/ghostdraft/actions/workflows/ci.yml/badge.svg)](https://github.com/Di-kairos/ghostdraft/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-macOS-blue)
+![windows](https://img.shields.io/badge/Windows-beta-orange)
 ![shellcheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)
 
-> **Status: early (v0.1.2).** `pipe` (view without writing to disk) and `new` (a draft
+> **Status: early (v0.1.3).** `pipe` (view without writing to disk) and `new` (a draft
 > in an open vault / RAM disk → `$EDITOR` → shred + clean editor traces on exit) are
 > ready, including the optional `--clipboard` (dangerous, gated behind confirmation +
 > auto-clear).
@@ -49,8 +50,8 @@ the source for forks/tests).
 > does **not** defend against an attacker who rewrites *both* (the release itself). For
 > authenticity you need a signature / Homebrew.
 
-> The current public release is **v0.1.2** (signed, with `install.sh` + `SHA256SUMS`).
-> Pin it for reproducibility with `GHOSTDRAFT_VERSION=0.1.2` instead of `latest`.
+> The current public release is **v0.1.3** (signed, with `install.sh` + `SHA256SUMS`).
+> Pin it for reproducibility with `GHOSTDRAFT_VERSION=0.1.3` instead of `latest`.
 
 ## Usage
 
@@ -98,10 +99,14 @@ snake oil here, so we do **not** promise "zero traces":
 - **Fallback shred on SSD is not a guarantee** (exactly what securetrash warns about); real
   erasure comes from RAM-disk detach or crypto-shred of a closed vault.
 
-## Windows equivalent
+## Windows (beta)
 
-Planned as a second step: RAM disk (ImDisk / third-party), clipboard clearing,
-Notepad/editor backups, jump lists / recent. The port follows securetrash.
+A PowerShell port now exists in [`windows/README.md`](windows/README.md). It mirrors the
+macOS logic — RAM disk (ImDisk / third-party) with on-disk fallback shred, clipboard
+clearing, and cleanup of Notepad/editor backups and jump lists / recent.
+
+> **Beta:** the Windows port is logic-tested (Pester on CI) but not yet validated on real
+> Windows hardware. See [`windows/README.md`](windows/README.md).
 
 ## License
 
