@@ -19,7 +19,8 @@
 
 ## Установка
 
-Checksum-verified установка с релизного тега — verify-then-run (не доверяй — проверь):
+Checksum-verified установка с релизного тега — verify-then-run (не доверяй — проверяй).
+Прогнать скрипт через `| bash` — значит запустить код, который ты не читал, поэтому лучше так:
 
 ```bash
 base=https://github.com/Di-kairos/ghostdraft/releases/latest/download
