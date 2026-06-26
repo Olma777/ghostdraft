@@ -13,7 +13,7 @@
 # Полное ядро — в следующих паках; см. README «Scope & limitations».
 set -euo pipefail
 
-VERSION="0.1.4"
+VERSION="0.1.5"
 
 # === BEGIN vendored common (pin: 2e3d2dd5b36251bdcb1a8ffd348b63ece5fa7aab) ===
 # shellcheck shell=bash
@@ -366,7 +366,18 @@ cmd_new() {
     override) warn "$(t new_loc_override "$dir")" ;;
   esac
 
-  "${EDITOR:-nano}" "$f"
+  # Редактор: уважаем $EDITOR (можно с флагами, напр. "vim -i NONE"); иначе дефолт —
+  # `vim -i NONE`: мягкий перенос длинных строк (ключ не уезжает за край и не рвётся
+  # вставленными переводами строк) + `-i NONE` отключает ~/.viminfo, который иначе мы
+  # вычистить НЕ можем (см. new_residue). Нет vim — nano. read -ra безопасно бьёт $EDITOR на слова.
+  local -a _ed=()
+  [[ -n "${EDITOR:-}" ]] && read -ra _ed <<<"$EDITOR"
+  # Пусто/пробелы в $EDITOR (read -ra даёт пустой массив) → дефолт, не пытаемся
+  # исполнить сам черновик как команду.
+  if [[ ${#_ed[@]} -eq 0 ]]; then
+    if command -v vim >/dev/null 2>&1; then _ed=(vim -i NONE); else _ed=(nano); fi
+  fi
+  "${_ed[@]}" "$f"
 
   [[ $use_clip == 1 ]] && { _clip_put "$f" || true; }   # буфер не должен ломать shred
 

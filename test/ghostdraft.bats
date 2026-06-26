@@ -120,6 +120,58 @@ SH
   rm -rf "$work"
 }
 
+@test "new defaults the fallback editor to 'vim -i NONE' when EDITOR is unset" {
+  work="$(mktemp -d)"; bin="$work/bin"; mkdir -p "$bin"
+  # Стаб vim: пишет контент в последний аргумент (черновик), логирует свои аргументы.
+  cat > "$bin/vim" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "$VIM_ARGS"
+for f; do :; done
+printf 'DRAFT-CONTENT' > "$f"
+SH
+  chmod +x "$bin/vim"
+  export VIM_ARGS="$work/vimargs"
+  run env -u EDITOR PATH="$bin:$PATH" GHOSTDRAFT_DIR="$work/d" bash "$SCRIPT" new
+  [ "$status" -eq 0 ]
+  run cat "$VIM_ARGS"
+  [[ "$output" == "-i NONE "* ]]
+  rm -rf "$work"
+}
+
+@test "new falls back to default when \$EDITOR is whitespace-only (no exec of the draft)" {
+  work="$(mktemp -d)"; bin="$work/bin"; mkdir -p "$bin"
+  cat > "$bin/vim" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "$VIM_ARGS"
+for f; do :; done
+printf 'DRAFT-CONTENT' > "$f"
+SH
+  chmod +x "$bin/vim"
+  export VIM_ARGS="$work/vimargs"
+  run env PATH="$bin:$PATH" GHOSTDRAFT_DIR="$work/d" EDITOR="   " bash "$SCRIPT" new
+  [ "$status" -eq 0 ]
+  run cat "$VIM_ARGS"
+  [[ "$output" == "-i NONE "* ]]
+  rm -rf "$work"
+}
+
+@test "new honors a multi-word \$EDITOR (flags preserved)" {
+  work="$(mktemp -d)"; bin="$work/bin"; mkdir -p "$bin"
+  cat > "$bin/myed" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "$ED_ARGS"
+for f; do :; done
+printf 'DRAFT-CONTENT' > "$f"
+SH
+  chmod +x "$bin/myed"
+  export ED_ARGS="$work/edargs"
+  run env PATH="$bin:$PATH" GHOSTDRAFT_DIR="$work/d" EDITOR="myed --wrap" bash "$SCRIPT" new
+  [ "$status" -eq 0 ]
+  run cat "$ED_ARGS"
+  [[ "$output" == "--wrap "* ]]
+  rm -rf "$work"
+}
+
 @test "new cleans vim swap/undo and nano backup of the draft" {
   work="$(mktemp -d)"; dir="$work/draftdir"
   # редактор создаёт побочные editor-следы рядом с черновиком
