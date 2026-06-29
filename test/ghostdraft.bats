@@ -151,9 +151,13 @@ SH
   run env -u EDITOR PATH="$bin:$PATH" GHOSTDRAFT_DIR="$work/d" bash "$SCRIPT" new
   [ "$status" -eq 0 ]
   run cat "$VIM_ARGS"
-  # один-клавишный выход из обоих режимов + всегда видимая подсказка
+  # всегда видимая подсказка + КЛАВИАТУРНЫЙ путь ведёт (F-клавиши в Warp не проходят →
+  # newbie застревал): statusline должен показывать Esc→ZZ/ZQ, не только F2/F3.
   [[ "$output" == *"laststatus=2"* ]]
   [[ "$output" == *"statusline="* ]]
+  [[ "$output" == *"Esc"* ]]
+  [[ "$output" == *"ZZ"* ]]
+  [[ "$output" == *"ZQ"* ]]
   [[ "$output" == *"nnoremap <F2> :wq<CR>"* ]]
   [[ "$output" == *"inoremap <F2> <Esc>:wq<CR>"* ]]
   [[ "$output" == *"<F3> :q!<CR>"* ]]

@@ -63,6 +63,12 @@ ghostdraft version         # show the version (also -v / --version)
 ghostdraft --help          # help (also -h)
 ```
 
+**Exiting the default editor (vim).** `new` opens `vim` (with a soft-wrap, no-`.viminfo`
+setup) when `$EDITOR` is unset. To quit: press **`Esc`**, then **`ZZ`** to save & exit, or
+**`ZQ`** to quit **without** saving (`:wq` / `:q!` work too). An always-visible hint line
+shows this. The **F2/F3** keys are also mapped, but some terminals (e.g. Warp) intercept them
+before vim sees them — so prefer `Esc` → `ZZ`/`ZQ`.
+
 ## Architecture
 
 - Single-file Bash, zero dependencies. Native macOS primitives (`hdiutil` for the RAM disk,

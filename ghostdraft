@@ -376,15 +376,16 @@ cmd_new() {
   # исполнить сам черновик как команду.
   if [[ ${#_ed[@]} -eq 0 ]]; then
     if command -v vim >/dev/null 2>&1; then
-      # Дружелюбный дефолтный vim: всегда видимая подсказка выхода (statusline) + F2=save&exit,
-      # F3=discard — один клавишный выход, работает и из INSERT (newbie застревал в `-- INSERT --`,
-      # не зная про Esc-then-:wq). Колоночные fallback'и (:wq/:q!) тоже показаны. `-i NONE` —
-      # та же приватность. Применяем ТОЛЬКО к дефолту: свой $EDITOR пользователя не трогаем.
+      # Дружелюбный дефолтный vim: всегда видимая подсказка выхода (statusline). КЛАВИАТУРНЫЙ
+      # путь ведёт (Esc→ZZ/ZQ, потом :wq/:q!), потому что F-клавиши терминалы (Warp) часто
+      # перехватывают и до vim они не доходят — newbie застревал именно так. F2/F3 оставлены
+      # как бонус, если терминал их пропускает. `-i NONE` — та же приватность (без ~/.viminfo).
+      # Применяем ТОЛЬКО к дефолту: свой $EDITOR пользователя не трогаем.
       # NB: в statusline нельзя сырой `|` (vim примет за разделитель команд) — поэтому разделители
       # пробелами; пробелы экранируем `\ ` (требование :set statusline).
       _ed=(vim -i NONE
         -c 'set laststatus=2'
-        -c 'set statusline=\ \ F2\ =\ save\ &\ exit\ \ \ \ \ F3\ =\ discard\ \ \ \ \ (or\ press\ Esc\ then\ type\ :wq\ or\ :q!)'
+        -c 'set statusline=\ \ Esc\ then\ ZZ\ =\ save\ &\ exit\ \ \ \ ZQ\ =\ discard\ \ \ \ (or\ :wq\ /\ :q!\ \ \ F2/F3\ if\ your\ terminal\ allows)'
         -c 'nnoremap <F2> :wq<CR>'
         -c 'inoremap <F2> <Esc>:wq<CR>'
         -c 'nnoremap <F3> :q!<CR>'
